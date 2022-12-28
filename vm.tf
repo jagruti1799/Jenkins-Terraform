@@ -3,14 +3,13 @@ resource "tls_private_key" "webkey" {
   rsa_bits  = 4096
 }
 
-//Creating local file for storing ssh_key
 resource "local_file" "webkey" {
   filename= "webkey.pem"  
   content= tls_private_key.webkey.private_key_pem 
 }
 
 resource "azurerm_virtual_machine" "vm" {
-  name                  = "my-vm"
+  name                  = "nginx-vm"
   location              = var.location
   resource_group_name   = var.resource_group
   network_interface_ids = [azurerm_network_interface.nic.id]
@@ -53,17 +52,35 @@ resource "azurerm_virtual_machine" "vm" {
    provisioner "local-exec" {
     command = "chmod 600 webkey.pem"
   }
-   
-  provisioner "file" {
-    source      = "/home/einfochips/Desktop/Jenkins/Terraform/tomcat.sh"
-    destination = "/home/adminuser/tomcat.sh"
-  }
- 
-  provisioner "remote-exec" {
-    inline = [
-      "ls -a",
-      "sudo chmod +x tomcat.sh",
-      "sudo sh tomcat.sh",
-    ]
-  }
+
+  # provisioner "file" {
+  #   source      = "./nginx.sh"
+  #   destination = "/home/nginx.sh"
+  # }
+
+  # provisioner "remote-exec" {
+  #   inline = [
+  #     "chmod +x /tmp/script.sh",
+  #     "/tmp/script.sh args",
+  #   ]
+  # }
+}
+
+resource "azurerm_public_ip" "lbpublicip" {
+  name                = "lbpublicip"
+  location            = var.location
+  resource_group_name = var.resource_group
+  allocation_method   = "Static"
+  depends_on          = [azurerm_resource_group.rg]
+}
+
+resource "azurerm_lb" "nginx_lb" {
+  name                = "ngnixlb"
+  location            = var.location
+  resource_group_name = var.resource_group
+
+  frontend_ip_configuration {
+    name                 = "PublicIPAddress"
+    public_ip_address_id = azurerm_public_ip.lbpublicip.id
+    }
 }
